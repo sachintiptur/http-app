@@ -23,10 +23,14 @@ const (
 
 var db Database
 
+// Initialise the database
+
 func (db *Database) InitDatabase() {
 	db.dataMap = make(map[string]string)
 }
 
+// Validate the data sent by client
+// Check for DB limit, key and value length
 func (db *Database) ValidateData(key, val string) (int, error) {
 
 	if len(db.dataMap) == MAX_DB_ENTRY {
@@ -69,7 +73,7 @@ func processGET(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, "Database entry not found", http.StatusNotFound)
 	} else {
 		resp.WriteHeader(http.StatusOK)
-		resp.Write([]byte(db.dataMap[key]))
+		resp.Write([]byte(fmt.Sprintf("Data found for key %s: %s", key, db.dataMap[key])))
 	}
 
 }
@@ -86,7 +90,7 @@ func processPUT(resp http.ResponseWriter, req *http.Request) {
 		resp.WriteHeader(http.StatusOK)
 		resp.Write([]byte("Database updated with new key/value pair"))
 	} else {
-		http.Error(resp, "Updated the existing key/vlaue pair", http.StatusNotFound)
+		http.Error(resp, "Updated the existing key/vlaue pair", http.StatusFound)
 	}
 
 	db.dataMap[key] = val
@@ -113,12 +117,6 @@ func processDELETE(resp http.ResponseWriter, req *http.Request) {
 // Handler function to handle HTTP requests
 func processHTTPRequests(resp http.ResponseWriter, req *http.Request) {
 
-	if req.URL.Path != "/" {
-		resp.Write([]byte("Requested URL not found"))
-		http.Error(resp, "not found.", http.StatusNotFound)
-		return
-	}
-
 	key := req.URL.Query().Get("key")
 	val := req.URL.Query().Get("value")
 
@@ -135,11 +133,13 @@ func processHTTPRequests(resp http.ResponseWriter, req *http.Request) {
 	case http.MethodDelete:
 		processDELETE(resp, req)
 	default:
-		fmt.Printf("Invalid method or not handled")
+		http.Error(resp, "Invalid method or not handled", http.StatusMethodNotAllowed)
 	}
 
 }
 
+// main function takes server address as input
+// and starts listening for http requests
 func main() {
 	addr := flag.String("addr", ":8080", "Server address string")
 	flag.Parse()

@@ -13,6 +13,7 @@ type data struct {
 	key, val string
 }
 
+// Function to create http request based on the HTTP method
 func createHTTPRequest(method string, userData data) (*http.Request, error) {
 	var url string
 	url = "http://localhost:8080"
@@ -42,6 +43,26 @@ func createHTTPRequest(method string, userData data) (*http.Request, error) {
 
 }
 
+// Function to send HTTP request and parse the response
+func PrepareAndSendHTTPRequest(method string, tmp data) (string, error) {
+	client := http.Client{Timeout: time.Duration(1) * time.Second}
+
+	req, err := createHTTPRequest(method, tmp)
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("http request failed. error %s", err)
+		return "HTTP request failed", err
+	}
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	return string(body), nil
+
+}
+
+// Main function takes http method, key and value as the command
+// line arguments. Build and send appropriate HTTP request to
+// the server.
 func main() {
 
 	method := flag.String("m", "", "HTTP method")
@@ -50,20 +71,14 @@ func main() {
 
 	flag.Parse()
 
-	client := http.Client{Timeout: time.Duration(1) * time.Second}
 	var tmp = data{key: *key, val: *value}
 
-	req, err := createHTTPRequest(*method, tmp)
-	resp, err := client.Do(req)
+	resp, err := PrepareAndSendHTTPRequest(*method, tmp)
 	if err != nil {
-		fmt.Printf("http request failed. error %s", err)
+		fmt.Printf("PrepareAndSendHTTPRequest failed with error %s", err)
 		return
 	}
 
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-
-	log.Println(resp.Status)
-	log.Println(string(body[:]))
+	log.Println(resp)
 
 }
