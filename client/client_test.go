@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	"github.com/jarcoal/httpmock"
+	"go.uber.org/goleak"
 )
 
 var tmp data
 
 func TestCreateHTTPRequest(t *testing.T) {
-
+	defer goleak.VerifyNone(t)
 	var testcases = []struct {
 		name               string
 		method             string

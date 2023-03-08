@@ -5,9 +5,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"go.uber.org/goleak"
 )
 
 func TestProcessHTTPRequests(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	var testcases = []struct {
 		name           string
 		method         string
@@ -94,6 +97,7 @@ func TestProcessHTTPRequests(t *testing.T) {
 		} else {
 			log.Println("FAILED")
 		}
+
 	}
 
 }
