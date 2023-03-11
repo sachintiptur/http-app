@@ -5,40 +5,25 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sync"
 	"time"
+
+	database "github.com/sachintiptur/http-app/util"
 )
 
-// Map as a database to store key-value pairs
-type Database struct {
-	m       sync.RWMutex
-	dataMap map[string]string
+type dbStruct struct {
+	dbIntf database.Database
 }
 
-const (
-	MAX_DB_ENTRY = 1000
-	MAX_KEY_SZ   = 16
-	MAX_VAL_SZ   = 32
-)
-
-var db Database
-
-// Initialise the database
-
-func (db *Database) InitDatabase() {
-	db.dataMap = make(map[string]string)
-}
+var data map[string]string
 
 // Validate the data sent by client
-// Check for DB limit, key and value length
-func (db *Database) ValidateData(key, val string) (int, error) {
+// Check for key and value length
+func ValidateData(key, val string) (int, error) {
 
-	if len(db.dataMap) == MAX_DB_ENTRY {
-		return http.StatusBadRequest, fmt.Errorf("Database limit of %d reached", MAX_DB_ENTRY)
-	} else if len(key) > MAX_KEY_SZ {
-		return http.StatusBadRequest, fmt.Errorf("Key length is greater than %d", MAX_KEY_SZ)
-	} else if len(val) > MAX_VAL_SZ {
-		return http.StatusBadRequest, fmt.Errorf("Value length is greater than %d", MAX_VAL_SZ)
+	if len(key) > database.MAX_KEY_SZ {
+		return http.StatusBadRequest, fmt.Errorf("Key length is greater than %d", database.MAX_KEY_SZ)
+	} else if len(val) > database.MAX_VAL_SZ {
+		return http.StatusBadRequest, fmt.Errorf("Value length is greater than %d", database.MAX_VAL_SZ)
 	} else {
 		return http.StatusOK, nil
 	}
@@ -58,80 +43,108 @@ func NewLogInfo(reqHandler http.Handler) *LogInfo {
 // logging middleware functions
 func (l *LogInfo) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	start := time.Now()
-	log.Printf("METHOD: %s KEY: %s", req.Method, req.URL.Query().Get("key"))
+	log.Printf("METHOD: %s PATH: %s KEY: %s", req.Method, req.URL, req.URL.Query().Get("key"))
 	l.handler.ServeHTTP(resp, req)
 	log.Printf("Time elapsed: %v", time.Since(start))
 }
 
 // Process the HTTP GET request
-func processGET(resp http.ResponseWriter, req *http.Request) {
+func processGET(dbI database.Database, resp http.ResponseWriter, req *http.Request) {
 	key := req.URL.Query().Get("key")
-	db.m.RLock()
-	defer db.m.RUnlock()
 
-	if _, ok := db.dataMap[key]; !ok {
+	if ok := dbI.Contains(key); !ok {
 		http.Error(resp, "Database entry not found", http.StatusNotFound)
 	} else {
+		//data, ok := dbI.(*database.MemData)
+		data, _ := dbI.Read()
 		resp.WriteHeader(http.StatusOK)
-		resp.Write([]byte(fmt.Sprintf("Data found for key %s: %s", key, db.dataMap[key])))
+		resp.Write([]byte(fmt.Sprintf("Data found for key %s: %s", key, data[key])))
 	}
-
+	return
 }
 
 // Process the HTTP PUT request
-func processPUT(resp http.ResponseWriter, req *http.Request) {
+func processPUT(dbI database.Database, resp http.ResponseWriter, req *http.Request) {
 
 	key := req.URL.Query().Get("key")
 	val := req.URL.Query().Get("value")
-	db.m.Lock()
-	defer db.m.Unlock()
 
-	if _, ok := db.dataMap[key]; !ok {
+	data, err := dbI.Read()
+	if err != nil {
+		http.Error(resp, "database read failed", http.StatusNotFound)
+		return
+	}
+	if data == nil {
+		data = make(map[string]string)
+	}
+	// check for database limit before writing
+	if len(data) == database.MAX_DB_ENTRY {
+		http.Error(resp, "Database limit reached", http.StatusInsufficientStorage)
+		return
+	}
+
+	if _, ok := data[key]; !ok {
 		resp.WriteHeader(http.StatusOK)
 		resp.Write([]byte("Database updated with new key/value pair"))
 	} else {
 		http.Error(resp, "Updated the existing key/vlaue pair", http.StatusFound)
 	}
 
-	db.dataMap[key] = val
+	// write to database
+	data[key] = val
+	err = dbI.Write(data)
+	if err != nil {
+		http.Error(resp, "database write failed", http.StatusNotModified)
+	}
 
 }
 
 // Process the HTTP DELETE request
-func processDELETE(resp http.ResponseWriter, req *http.Request) {
+func processDELETE(dbI database.Database, resp http.ResponseWriter, req *http.Request) {
 	key := req.URL.Query().Get("key")
-	db.m.Lock()
-	defer db.m.Unlock()
 
-	if _, ok := db.dataMap[key]; ok {
-		delete(db.dataMap, key)
-		resp.WriteHeader(http.StatusOK)
-		resp.Write([]byte("Database entry deleted"))
-
-	} else {
-		http.Error(resp, "Database entry not found", http.StatusNotFound)
+	data, err := dbI.Read()
+	if err != nil {
+		http.Error(resp, "database read failed", http.StatusNotFound)
+		return
 	}
+	if _, ok := data[key]; !ok {
+		http.Error(resp, "Database entry not found", http.StatusNotFound)
+		return
+
+	}
+	delete(data, key)
+
+	err = dbI.Write(data)
+	if err != nil {
+		http.Error(resp, "database write failed", http.StatusNotModified)
+		return
+	}
+
+	resp.WriteHeader(http.StatusOK)
+	resp.Write([]byte("Database entry deleted"))
+	return
 
 }
 
 // Handler function to handle HTTP requests
-func processHTTPRequests(resp http.ResponseWriter, req *http.Request) {
+func (dbS dbStruct) processHTTPRequests(resp http.ResponseWriter, req *http.Request) {
 
 	key := req.URL.Query().Get("key")
 	val := req.URL.Query().Get("value")
 
-	if status, err := db.ValidateData(key, val); err != nil {
+	if status, err := ValidateData(key, val); err != nil {
 		http.Error(resp, err.Error(), status)
 		return
 	}
-
+	// Handle http methods
 	switch req.Method {
 	case http.MethodGet:
-		processGET(resp, req)
+		processGET(dbS.dbIntf, resp, req)
 	case http.MethodPut:
-		processPUT(resp, req)
+		processPUT(dbS.dbIntf, resp, req)
 	case http.MethodDelete:
-		processDELETE(resp, req)
+		processDELETE(dbS.dbIntf, resp, req)
 	default:
 		http.Error(resp, "Invalid method or not handled", http.StatusMethodNotAllowed)
 	}
@@ -142,15 +155,19 @@ func processHTTPRequests(resp http.ResponseWriter, req *http.Request) {
 // and starts listening for http requests
 func main() {
 	addr := flag.String("addr", ":8080", "Server address string")
+	dbType := flag.String("db", "map", "Database to use, supported values are [map, json]")
 	flag.Parse()
 
-	db.InitDatabase()
+	// map of supported database types
+	var db = map[string]database.Database{"map": &database.JsonData{}, "value": &database.MemData{}}
+	var dbS dbStruct
+	dbS.dbIntf = db[*dbType]
+	dbS.dbIntf.Init()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", processHTTPRequests)
+	mux.HandleFunc("/", dbS.processHTTPRequests)
 
 	mwMux := NewLogInfo(mux)
-
 	log.Println("Server is listening...")
 	log.Fatal(http.ListenAndServe(*addr, mwMux))
 
