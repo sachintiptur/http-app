@@ -1,5 +1,7 @@
 # HTTP client server
-
+HTTP client server application using golang's net/http package.
+This implements a basic http requests handling and it can be configured to
+use either local map as a database or JSON file as a database.
 
 ## Build instructions
 
@@ -17,6 +19,8 @@
 Usage of ./server:
   -addr string
     	Server address string (default ":8080")
+  -db string
+    	Database to use, supported values are [map, json] (default "map")
 ```
 
 **Client**
@@ -25,7 +29,7 @@ Usage of ./client:
   -k string
     	Key for the data
   -m string
-    	HTTP method
+    	HTTP method, supported methods are [GET, PUT, DELETE]
   -v string
     	Value of the data
 ```
@@ -33,46 +37,76 @@ Usage of ./client:
 ## Example execution
 **Server**
 ```
-stiptur@mb02287 http-app % _build/server
-2023/03/08 15:25:20 Server is listening...
-2023/03/08 15:25:37 METHOD: PUT KEY: foo
-2023/03/08 15:25:37 Time elapsed: 44.667µs
-2023/03/08 15:25:50 METHOD: GET KEY: foo
-2023/03/08 15:25:50 Time elapsed: 42µs
-2023/03/08 15:25:59 METHOD: DELETE KEY: foo
-2023/03/08 15:25:59 Time elapsed: 68.916µs
+stiptur@mb02287 http-app % ./_build/server   
+2023/03/12 22:13:10 Server is listening...
+2023/03/12 22:13:25 METHOD: PUT PATH: /?key=foo-1&value=bar KEY: foo-1
+2023/03/12 22:13:25 Time elapsed: 612.167µs
 ```
 
 **Client**
 
 ```
-stiptur@mb02287 http-app % ./_build/client -m=PUT -k=foo -v=bar
-2023/03/08 15:25:37 200 OK
-2023/03/08 15:25:37 Database updated with new key/value pair
-stiptur@mb02287 http-app % ./_build/client -m=GET -k=foo       
-2023/03/08 15:25:50 200 OK
-2023/03/08 15:25:50 Data found for key foo: bar
-stiptur@mb02287 http-app % ./_build/client -m=DELETE -k=foo
-2023/03/08 15:25:59 200 OK
-2023/03/08 15:25:59 Database entry deleted
-stiptur@mb02287 http-app %
+stiptur@mb02287 http-app % ./_build/client -m=PUT -k=foo-1 -v=bar
+2023/03/12 22:13:25 Database updated with new key/value pair
+
 ```
 
 ## Unit test coverage
 
 **Server**
 ```
+stiptur@mb02287 server % go test -coverprofile cover.out
+2023/03/12 22:07:02 
+2023/03/12 22:07:02 Testing with *database.JsonData as database
+2023/03/12 22:07:02 Test http PUT request 
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 Test http GET request 
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 Test http patch request using PUT
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 Test http DELETE request 
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 Test http DELETE request for unknown entry 
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 Test http GET request failure scenario
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 Test invalid key size in http PUT request 
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 Test invalid value size in http PUT request 
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 
+2023/03/12 22:07:02 Testing with *database.MemData as database
+2023/03/12 22:07:02 Test http PUT request 
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 Test http GET request 
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 Test http patch request using PUT
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 Test http DELETE request 
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 Test http DELETE request for unknown entry 
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 Test http GET request failure scenario
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 Test invalid key size in http PUT request 
+2023/03/12 22:07:02 PASSED
+2023/03/12 22:07:02 Test invalid value size in http PUT request 
+2023/03/12 22:07:02 PASSED
+PASS
+coverage: 62.2% of statements
+ok  	github.com/sachintiptur/http-app/server	0.249s
 stiptur@mb02287 server % go tool cover -func cover.out  
-github.com/sachintiptur/http-app/server/server.go:28:	InitDatabase		100.0%
-github.com/sachintiptur/http-app/server/server.go:34:	ValidateData		85.7%
-github.com/sachintiptur/http-app/server/server.go:52:	NewLogInfo		0.0%
-github.com/sachintiptur/http-app/server/server.go:59:	ServeHTTP		0.0%
-github.com/sachintiptur/http-app/server/server.go:67:	processGET		100.0%
-github.com/sachintiptur/http-app/server/server.go:82:	processPUT		100.0%
-github.com/sachintiptur/http-app/server/server.go:101:	processDELETE		100.0%
-github.com/sachintiptur/http-app/server/server.go:118:	processHTTPRequests	90.0%
-github.com/sachintiptur/http-app/server/server.go:143:	main			0.0%
-total:							(statements)		72.7%
+github.com/sachintiptur/http-app/server/server.go:21:	ValidateData		100.0%
+github.com/sachintiptur/http-app/server/server.go:37:	NewLogInfo		0.0%
+github.com/sachintiptur/http-app/server/server.go:44:	ServeHTTP		0.0%
+github.com/sachintiptur/http-app/server/server.go:52:	processGET		100.0%
+github.com/sachintiptur/http-app/server/server.go:67:	processPUT		68.4%
+github.com/sachintiptur/http-app/server/server.go:103:	processDELETE		75.0%
+github.com/sachintiptur/http-app/server/server.go:131:	processHTTPRequests	90.0%
+github.com/sachintiptur/http-app/server/server.go:156:	main			0.0%
+total:							(statements)		62.2%
+stiptur@mb02287 server % 
+
 ```
 
 **Client**

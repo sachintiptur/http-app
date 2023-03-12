@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"log"
@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	database "github.com/sachintiptur/http-app/util"
+	database "github.com/sachintiptur/http-app/pkg/util"
 	"go.uber.org/goleak"
 )
 
@@ -74,15 +74,15 @@ func TestProcessHTTPRequests(t *testing.T) {
 		},
 	}
 
-	var DatabaseUnderTest []dbStruct
+	var DatabaseUnderTest []DbStruct
 	var url string
 	// run tests for both file as database and local map as database
-	DatabaseUnderTest = append(DatabaseUnderTest, dbStruct{&database.JsonData{}}, dbStruct{&database.MemData{}})
+	DatabaseUnderTest = append(DatabaseUnderTest, DbStruct{&database.JsonData{}}, DbStruct{&database.MemData{}})
 
 	for _, db := range DatabaseUnderTest {
-		db.dbIntf.Init()
+		db.DbIntf.Init()
 		log.Println()
-		log.Printf("Testing with %T as database\n", db.dbIntf)
+		log.Printf("Testing with %T as database\n", db.DbIntf)
 		for _, tc := range testcases {
 			log.Println(tc.name)
 			if tc.method == http.MethodPut {
@@ -94,7 +94,7 @@ func TestProcessHTTPRequests(t *testing.T) {
 
 			req := httptest.NewRequest(tc.method, url, nil)
 			w := httptest.NewRecorder()
-			db.processHTTPRequests(w, req)
+			db.ProcessHTTPRequests(w, req)
 
 			if tc.expectedStatus == w.Result().StatusCode {
 				log.Println("PASSED")

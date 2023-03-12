@@ -1,4 +1,4 @@
-package main
+package client
 
 import (
 	"log"
@@ -9,7 +9,7 @@ import (
 	"go.uber.org/goleak"
 )
 
-var tmp data
+var tmp Data
 
 func TestCreateHTTPRequest(t *testing.T) {
 	defer goleak.VerifyNone(t)
@@ -62,11 +62,11 @@ func TestCreateHTTPRequest(t *testing.T) {
 		log.Println(tc.name)
 		if tc.method == http.MethodPut {
 			url = "http://localhost:8080?key=" + tc.key + "&value=" + tc.value
-			tmp.key = tc.key
-			tmp.val = tc.value
+			tmp.Key = tc.key
+			tmp.Val = tc.value
 		} else {
 			url = "http://localhost:8080" + "?key=" + tc.key
-			tmp.key = tc.key
+			tmp.Key = tc.key
 		}
 
 		httpmock.RegisterResponder(tc.method, url,

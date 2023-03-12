@@ -111,11 +111,14 @@ func (db *JsonData) Contains(key string) bool {
 // Map as a database to store key-value pairs
 type MemData JsonData
 
+// Initialise the database
 func (db *MemData) Init() error {
 	db.dataMap = make(map[string]string)
 	return nil
 }
 
+// Database read function
+// reads json file and returns a map containing data
 func (db *MemData) Read() (map[string]string, error) {
 	db.m.RLock()
 	defer db.m.RUnlock()
@@ -123,6 +126,8 @@ func (db *MemData) Read() (map[string]string, error) {
 	return db.dataMap, nil
 }
 
+// Database write function
+// writes the data map into json fil
 func (db *MemData) Write(data map[string]string) error {
 	db.m.Lock()
 	defer db.m.Unlock()
@@ -131,6 +136,8 @@ func (db *MemData) Write(data map[string]string) error {
 	return nil
 }
 
+// Contains function
+// Checks for the presence for entry in the database
 func (db *MemData) Contains(key string) bool {
 	db.m.Lock()
 	defer db.m.Unlock()

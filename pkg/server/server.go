@@ -1,17 +1,16 @@
-package main
+package server
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"time"
 
-	database "github.com/sachintiptur/http-app/util"
+	database "github.com/sachintiptur/http-app/pkg/util"
 )
 
-type dbStruct struct {
-	dbIntf database.Database
+type DbStruct struct {
+	DbIntf database.Database
 }
 
 var data map[string]string
@@ -49,13 +48,12 @@ func (l *LogInfo) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 }
 
 // Process the HTTP GET request
-func processGET(dbI database.Database, resp http.ResponseWriter, req *http.Request) {
+func ProcessGET(dbI database.Database, resp http.ResponseWriter, req *http.Request) {
 	key := req.URL.Query().Get("key")
 
 	if ok := dbI.Contains(key); !ok {
 		http.Error(resp, "Database entry not found", http.StatusNotFound)
 	} else {
-		//data, ok := dbI.(*database.MemData)
 		data, _ := dbI.Read()
 		resp.WriteHeader(http.StatusOK)
 		resp.Write([]byte(fmt.Sprintf("Data found for key %s: %s", key, data[key])))
@@ -64,7 +62,7 @@ func processGET(dbI database.Database, resp http.ResponseWriter, req *http.Reque
 }
 
 // Process the HTTP PUT request
-func processPUT(dbI database.Database, resp http.ResponseWriter, req *http.Request) {
+func ProcessPUT(dbI database.Database, resp http.ResponseWriter, req *http.Request) {
 
 	key := req.URL.Query().Get("key")
 	val := req.URL.Query().Get("value")
@@ -100,7 +98,7 @@ func processPUT(dbI database.Database, resp http.ResponseWriter, req *http.Reque
 }
 
 // Process the HTTP DELETE request
-func processDELETE(dbI database.Database, resp http.ResponseWriter, req *http.Request) {
+func ProcessDELETE(dbI database.Database, resp http.ResponseWriter, req *http.Request) {
 	key := req.URL.Query().Get("key")
 
 	data, err := dbI.Read()
@@ -128,7 +126,7 @@ func processDELETE(dbI database.Database, resp http.ResponseWriter, req *http.Re
 }
 
 // Handler function to handle HTTP requests
-func (dbS dbStruct) processHTTPRequests(resp http.ResponseWriter, req *http.Request) {
+func (dbS DbStruct) ProcessHTTPRequests(resp http.ResponseWriter, req *http.Request) {
 
 	key := req.URL.Query().Get("key")
 	val := req.URL.Query().Get("value")
@@ -140,35 +138,13 @@ func (dbS dbStruct) processHTTPRequests(resp http.ResponseWriter, req *http.Requ
 	// Handle http methods
 	switch req.Method {
 	case http.MethodGet:
-		processGET(dbS.dbIntf, resp, req)
+		ProcessGET(dbS.DbIntf, resp, req)
 	case http.MethodPut:
-		processPUT(dbS.dbIntf, resp, req)
+		ProcessPUT(dbS.DbIntf, resp, req)
 	case http.MethodDelete:
-		processDELETE(dbS.dbIntf, resp, req)
+		ProcessDELETE(dbS.DbIntf, resp, req)
 	default:
 		http.Error(resp, "Invalid method or not handled", http.StatusMethodNotAllowed)
 	}
-
-}
-
-// main function takes server address as input
-// and starts listening for http requests
-func main() {
-	addr := flag.String("addr", ":8080", "Server address string")
-	dbType := flag.String("db", "map", "Database to use, supported values are [map, json]")
-	flag.Parse()
-
-	// map of supported database types
-	var db = map[string]database.Database{"map": &database.JsonData{}, "value": &database.MemData{}}
-	var dbS dbStruct
-	dbS.dbIntf = db[*dbType]
-	dbS.dbIntf.Init()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", dbS.processHTTPRequests)
-
-	mwMux := NewLogInfo(mux)
-	log.Println("Server is listening...")
-	log.Fatal(http.ListenAndServe(*addr, mwMux))
 
 }
