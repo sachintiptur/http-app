@@ -17,13 +17,20 @@ func main() {
 	dbType := flag.String("db", "map", "Database to use, supported values are [map, json]")
 	flag.Parse()
 
+	if *dbType != "map" && *dbType != "json" {
+		flag.Usage()
+		log.Fatal("Error: Unsupported database type")
+	}
 	// Map of supported database types
 	var db = map[string]database.Database{"map": &database.MemData{}, "json": &database.JsonData{}}
 	var dbS server.DbStruct
 
 	// Initialise the database
 	dbS.DbIntf = db[*dbType]
-	dbS.DbIntf.Init()
+	err := dbS.DbIntf.Init()
+	if err != nil {
+		log.Fatalf("database initialisation failed: %s", err)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", dbS.ProcessHTTPRequests)

@@ -3,12 +3,11 @@ package database
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"sync"
 )
 
-// Json file as a database to store key-value pairs
+// JsonData Json file as a database to store key-value pairs
 type JsonData struct {
 	m       sync.RWMutex
 	dataMap map[string]string
@@ -17,83 +16,136 @@ type JsonData struct {
 // Database interface
 type Database interface {
 	Init() error
-	Read() (map[string]string, error)
-	Write(map[string]string) error
+	Get(key string) (string, error)
+	Update(key, value string) error
+	Delete(key string) error
 	Contains(key string) bool
 }
 
-// DB file name
-var JSON_DB = "kvstore.json"
+// JsonDB database file name
+var JsonDB = "kvstore.json"
 
 const (
-	MAX_DB_ENTRY = 1000
-	MAX_KEY_SZ   = 16
-	MAX_VAL_SZ   = 32
+	MaxDbEntry = 1000
+	MaxKeySz   = 16
+	MaxValSz   = 32
 )
 
-// Initialise the database
-// Initialise the data map and creates json file
+// Init Initialise the database
+// Initialises the data map and creates json file
 func (db *JsonData) Init() error {
 	db.dataMap = make(map[string]string)
-	file, err := os.Create(JSON_DB)
+	file, err := os.Create(JsonDB)
 	defer file.Close()
 	if err != nil {
 		return fmt.Errorf("creating json file failed: %s", err)
 	}
-	return nil
+
+	// initialise with empty data
+	jsonData, err := json.Marshal(db.dataMap)
+	if err != nil {
+		fmt.Print("json marshal failed")
+		return err
+
+	}
+	err = os.WriteFile(JsonDB, jsonData, 0655)
+
+	if err != nil {
+		fmt.Print("writing to file failed")
+		return err
+	}
+	return err
 }
 
-// Database read function
-// reads json file and returns a map containing data
-func (db *JsonData) Read() (map[string]string, error) {
+// Get function reads json file and
+// returns a map containing data
+func (db *JsonData) Get(key string) (val string, err error) {
 
 	db.m.RLock()
 	defer db.m.RUnlock()
 
-	file, err := os.OpenFile(JSON_DB, os.O_RDWR, 0655)
+	data, err := os.ReadFile(JsonDB)
 	if err != nil {
-		return nil, fmt.Errorf("Opening json file failed: %s", err)
+		fmt.Print("reading json file failed")
+		return "", err
 	}
-	defer file.Close()
 
-	// read json file
-	data, _ := ioutil.ReadAll(file)
-	if len(data) == 0 {
-		return db.dataMap, nil
-	}
 	// unmarshal json data to data map
 	err = json.Unmarshal([]byte(data), &db.dataMap)
 	if err != nil {
-		return nil, fmt.Errorf("could not unmarshal json: %s\n", err)
+		fmt.Print(" unmarshalling json failed")
+		return "", err
+	}
+	if _, ok := db.dataMap[key]; !ok {
+		return "", fmt.Errorf("key not present")
 	}
 
-	return db.dataMap, nil
+	return db.dataMap[key], nil
 }
 
-// Database write function
+// Update function
 // writes the data map into json file
-func (db *JsonData) Write(data map[string]string) error {
+func (db *JsonData) Update(key, value string) error {
 	db.m.Lock()
 	defer db.m.Unlock()
 
-	db.dataMap = data
-	file, err := os.OpenFile(JSON_DB, os.O_RDWR, 0655)
+	data, err := os.ReadFile(JsonDB)
 	if err != nil {
-		return fmt.Errorf("Opening json file failed: %s", err)
+		fmt.Print("reading json file failed")
+		return err
 	}
-	defer file.Close()
+	err = json.Unmarshal([]byte(data), &db.dataMap)
+	if err != nil {
+		fmt.Print(" unmarshalling json data failed")
+		return err
+	}
+
+	if len(db.dataMap) > MaxDbEntry {
+		return fmt.Errorf("database maximum size %d reached", MaxDbEntry)
+	}
+	db.dataMap[key] = value
 
 	jsonData, err := json.Marshal(db.dataMap)
 	if err != nil {
 		return fmt.Errorf("could not marshal json: %s\n", err)
 
 	}
-	err = ioutil.WriteFile(file.Name(), jsonData, 0655)
+	err = os.WriteFile(JsonDB, jsonData, 0655)
 
 	if err != nil {
-		return fmt.Errorf("Writing record to json file failed: %s", err)
+		fmt.Print(" writing to json file failed")
+		return err
+	}
+	return nil
+}
+
+func (db *JsonData) Delete(key string) error {
+
+	db.m.Lock()
+	defer db.m.Unlock()
+	data, err := os.ReadFile(JsonDB)
+	if err != nil {
+		fmt.Print("reading json file failed")
+		return err
 	}
 
+	// unmarshal json data to data map
+	err = json.Unmarshal([]byte(data), &db.dataMap)
+	if err != nil {
+		return fmt.Errorf("could not unmarshal json: %s\n", err)
+	}
+	// delete the entry
+	delete(db.dataMap, key)
+	jsonData, err := json.Marshal(db.dataMap)
+	if err != nil {
+		return fmt.Errorf("could not marshal json: %s\n", err)
+
+	}
+	err = os.WriteFile(JsonDB, jsonData, 0655)
+
+	if err != nil {
+		return err
+	}
 	return nil
 
 }
@@ -101,46 +153,55 @@ func (db *JsonData) Write(data map[string]string) error {
 // Contains function
 // Checks for the presence for entry in the database
 func (db *JsonData) Contains(key string) bool {
-	db.Read()
-	if _, ok := db.dataMap[key]; !ok {
+	if _, err := db.Get(key); err != nil {
 		return false
 	}
 	return true
 }
 
-// Map as a database to store key-value pairs
+// MemData Map as a database to store key-value pairs
 type MemData JsonData
 
-// Initialise the database
+// Init Initialise the database
 func (db *MemData) Init() error {
 	db.dataMap = make(map[string]string)
 	return nil
 }
 
-// Database read function
-// reads json file and returns a map containing data
-func (db *MemData) Read() (map[string]string, error) {
+// Get Read function reads json file and returns a map containing data
+func (db *MemData) Get(key string) (string, error) {
 	db.m.RLock()
 	defer db.m.RUnlock()
-
-	return db.dataMap, nil
+	if _, ok := db.dataMap[key]; !ok {
+		return "", fmt.Errorf("database entry not found")
+	}
+	return db.dataMap[key], nil
 }
 
-// Database write function
-// writes the data map into json fil
-func (db *MemData) Write(data map[string]string) error {
+// Update function updates the db with key/value pair
+func (db *MemData) Update(key, value string) error {
 	db.m.Lock()
 	defer db.m.Unlock()
 
-	db.dataMap = data
+	db.dataMap[key] = value
+	return nil
+}
+
+// Delete function deletes the database entry
+func (db *MemData) Delete(key string) error {
+	db.m.Lock()
+	defer db.m.Unlock()
+
+	// delete the entry
+	delete(db.dataMap, key)
 	return nil
 }
 
 // Contains function
 // Checks for the presence for entry in the database
 func (db *MemData) Contains(key string) bool {
-	db.m.Lock()
-	defer db.m.Unlock()
+	db.m.RLock()
+	defer db.m.RUnlock()
 	if _, ok := db.dataMap[key]; !ok {
 		return false
 	}

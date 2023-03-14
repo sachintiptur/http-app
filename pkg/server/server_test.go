@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/stretchr/testify/require"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -38,7 +39,7 @@ func TestProcessHTTPRequests(t *testing.T) {
 			method:         http.MethodPut,
 			key:            "foo",
 			value:          "barbar",
-			expectedStatus: http.StatusFound,
+			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "Test http DELETE request ",
@@ -81,28 +82,24 @@ func TestProcessHTTPRequests(t *testing.T) {
 
 	for _, db := range DatabaseUnderTest {
 		db.DbIntf.Init()
-		log.Println()
 		log.Printf("Testing with %T as database\n", db.DbIntf)
+
 		for _, tc := range testcases {
-			log.Println(tc.name)
-			if tc.method == http.MethodPut {
-				url = "http://localhost:8080?key=" + tc.key + "&value=" + tc.value
-			} else {
-				url = "http://localhost:8080" + "?key=" + tc.key
+			t.Run(tc.name, func(t *testing.T) {
+				if tc.method == http.MethodPut {
+					url = "http://localhost:8080?key=" + tc.key + "&value=" + tc.value
+				} else {
+					url = "http://localhost:8080" + "?key=" + tc.key
 
-			}
+				}
 
-			req := httptest.NewRequest(tc.method, url, nil)
-			w := httptest.NewRecorder()
-			db.ProcessHTTPRequests(w, req)
+				req := httptest.NewRequest(tc.method, url, nil)
+				w := httptest.NewRecorder()
+				db.ProcessHTTPRequests(w, req)
 
-			if tc.expectedStatus == w.Result().StatusCode {
-				log.Println("PASSED")
-			} else {
-				log.Println("FAILED")
-				log.Println(w.Result().Status)
-			}
+				require.Equal(t, tc.expectedStatus, w.Result().StatusCode)
 
+			})
 		}
 	}
 

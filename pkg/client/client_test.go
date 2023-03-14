@@ -1,6 +1,7 @@
 package client
 
 import (
+	"github.com/stretchr/testify/require"
 	"log"
 	"net/http"
 	"testing"
@@ -34,7 +35,7 @@ func TestCreateHTTPRequest(t *testing.T) {
 			method:             http.MethodPut,
 			key:                "Germany",
 			value:              "Munich",
-			expectedResponse:   "Updated the existing key/vlaue pair",
+			expectedResponse:   "Updated the existing key/value pair",
 			expectedStatusCode: http.StatusFound,
 		},
 		{
@@ -54,32 +55,31 @@ func TestCreateHTTPRequest(t *testing.T) {
 	}
 
 	var url string
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
 
 	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			httpmock.Activate()
+			defer httpmock.DeactivateAndReset()
 
-		log.Println(tc.name)
-		if tc.method == http.MethodPut {
-			url = "http://localhost:8080?key=" + tc.key + "&value=" + tc.value
-			tmp.Key = tc.key
-			tmp.Val = tc.value
-		} else {
-			url = "http://localhost:8080" + "?key=" + tc.key
-			tmp.Key = tc.key
-		}
+			log.Println(tc.name)
+			if tc.method == http.MethodPut {
+				url = "http://localhost:8080?key=" + tc.key + "&value=" + tc.value
+				tmp.Key = tc.key
+				tmp.Val = tc.value
+			} else {
+				url = "http://localhost:8080" + "?key=" + tc.key
+				tmp.Key = tc.key
+			}
 
-		httpmock.RegisterResponder(tc.method, url,
-			httpmock.NewStringResponder(tc.expectedStatusCode, tc.expectedResponse))
+			httpmock.RegisterResponder(tc.method, url,
+				httpmock.NewStringResponder(tc.expectedStatusCode, tc.expectedResponse))
 
-		actualResponse, _ := PrepareAndSendHTTPRequest(tc.method, tmp)
+			actualResponse, _ := SendHTTPRequest(tc.method, tmp)
 
-		if actualResponse != tc.expectedResponse {
-			log.Println("FAILED")
-		} else {
-			log.Println("PASSED")
-		}
+			log.Println(actualResponse)
+			require.Equal(t, tc.expectedResponse, actualResponse)
 
+		})
 	}
 
 }
