@@ -1,3 +1,5 @@
 _build/
 _build/server
 _build/client
+.idea/
+kvstore.json

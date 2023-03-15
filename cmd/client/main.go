@@ -2,13 +2,12 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 
 	client "github.com/sachintiptur/http-app/pkg/client"
 )
 
-// Client CLI process main function
+// Client CLI process
 // takes http method, key and value as the command
 // line arguments. Build and send appropriate HTTP request to
 // the server.
@@ -20,12 +19,17 @@ func main() {
 
 	flag.Parse()
 
+	methods := map[string]string{"GET": "", "PUT": "", "DELETE": ""}
+	if _, ok := methods[*method]; !ok {
+		flag.Usage()
+		log.Fatal("method not supported")
+	}
+
 	var tmp = client.Data{Key: *key, Val: *value}
 
-	resp, err := client.PrepareAndSendHTTPRequest(*method, tmp)
+	resp, err := client.SendHTTPRequest(*method, tmp)
 	if err != nil {
-		fmt.Printf("PrepareAndSendHTTPRequest failed with error %s", err)
-		return
+		log.Fatalf("sending http request failed with error %s", err)
 	}
 
 	log.Println(resp)

@@ -8,7 +8,7 @@ server:
 client:
 	GOOS=$(GOOS) CGO_ENABLED=0 go build -o _build/client -v ./cmd/client
 
-.PHONE: build
+.PHONY: build
 build: server client
 
 .PHONY: test

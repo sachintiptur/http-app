@@ -13,22 +13,20 @@ type DbStruct struct {
 	DbIntf database.Database
 }
 
-var data map[string]string
-
-// Validate the data sent by client
+// ValidateData Validate the data sent by client
 // Check for key and value length
-func ValidateData(key, val string) (int, error) {
+func ValidateData(key, val string) error {
 
-	if len(key) > database.MAX_KEY_SZ {
-		return http.StatusBadRequest, fmt.Errorf("Key length is greater than %d", database.MAX_KEY_SZ)
-	} else if len(val) > database.MAX_VAL_SZ {
-		return http.StatusBadRequest, fmt.Errorf("Value length is greater than %d", database.MAX_VAL_SZ)
+	if len(key) > database.MaxKeySz {
+		return fmt.Errorf("key length is greater than %d", database.MaxKeySz)
+	} else if len(val) > database.MaxValSz {
+		return fmt.Errorf("value length is greater than %d", database.MaxValSz)
 	} else {
-		return http.StatusOK, nil
+		return nil
 	}
 }
 
-// Logging middle-ware handler struct
+// LogInfo Logging middle-ware handler struct
 type LogInfo struct {
 	handler http.Handler
 }
@@ -37,7 +35,7 @@ func NewLogInfo(reqHandler http.Handler) *LogInfo {
 	return &LogInfo{reqHandler}
 }
 
-// Interface implementation for LogInfo
+// ServeHTTP Interface implementation for LogInfo
 // Wraps the actual http handler functions with the
 // logging middleware functions
 func (l *LogInfo) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
@@ -47,75 +45,59 @@ func (l *LogInfo) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	log.Printf("Time elapsed: %v", time.Since(start))
 }
 
-// Process the HTTP GET request
+// ProcessGET Process the HTTP GET request
 func ProcessGET(dbI database.Database, resp http.ResponseWriter, req *http.Request) {
 	key := req.URL.Query().Get("key")
 
-	if ok := dbI.Contains(key); !ok {
+	// read the entry from database
+	value, err := dbI.Get(key)
+	if err != nil {
 		http.Error(resp, "Database entry not found", http.StatusNotFound)
 	} else {
-		data, _ := dbI.Read()
 		resp.WriteHeader(http.StatusOK)
-		resp.Write([]byte(fmt.Sprintf("Data found for key %s: %s", key, data[key])))
+		resp.Write([]byte(fmt.Sprintf("Data found for key %s: %s", key, value)))
 	}
 	return
 }
 
-// Process the HTTP PUT request
+// ProcessPUT Process the HTTP PUT request
 func ProcessPUT(dbI database.Database, resp http.ResponseWriter, req *http.Request) {
 
 	key := req.URL.Query().Get("key")
 	val := req.URL.Query().Get("value")
 
-	data, err := dbI.Read()
-	if err != nil {
-		http.Error(resp, "database read failed", http.StatusNotFound)
-		return
-	}
-	if data == nil {
-		data = make(map[string]string)
-	}
-	// check for database limit before writing
-	if len(data) == database.MAX_DB_ENTRY {
-		http.Error(resp, "Database limit reached", http.StatusInsufficientStorage)
-		return
-	}
-
-	if _, ok := data[key]; !ok {
-		resp.WriteHeader(http.StatusOK)
-		resp.Write([]byte("Database updated with new key/value pair"))
-	} else {
-		http.Error(resp, "Updated the existing key/vlaue pair", http.StatusFound)
-	}
+	// Check if db contains the key, the 'ok' flag is later used
+	// to send the appropriate http status
+	ok := dbI.Contains(key)
 
 	// write to database
-	data[key] = val
-	err = dbI.Write(data)
+	err := dbI.Update(key, val)
 	if err != nil {
 		http.Error(resp, "database write failed", http.StatusNotModified)
+	} else {
+		if !ok {
+			resp.WriteHeader(http.StatusOK)
+			resp.Write([]byte("Database updated with new key/value pair"))
+		} else {
+			// patch request case
+			resp.WriteHeader(http.StatusOK)
+			resp.Write([]byte("Updated the existing key/value pair"))
+		}
 	}
 
 }
 
-// Process the HTTP DELETE request
+// ProcessDELETE Process the HTTP DELETE request
 func ProcessDELETE(dbI database.Database, resp http.ResponseWriter, req *http.Request) {
 	key := req.URL.Query().Get("key")
 
-	data, err := dbI.Read()
-	if err != nil {
-		http.Error(resp, "database read failed", http.StatusNotFound)
-		return
-	}
-	if _, ok := data[key]; !ok {
+	if ok := dbI.Contains(key); !ok {
 		http.Error(resp, "Database entry not found", http.StatusNotFound)
 		return
-
 	}
-	delete(data, key)
 
-	err = dbI.Write(data)
-	if err != nil {
-		http.Error(resp, "database write failed", http.StatusNotModified)
+	if err := dbI.Delete(key); err != nil {
+		http.Error(resp, err.Error(), http.StatusNotModified)
 		return
 	}
 
@@ -125,14 +107,14 @@ func ProcessDELETE(dbI database.Database, resp http.ResponseWriter, req *http.Re
 
 }
 
-// Handler function to handle HTTP requests
+// ProcessHTTPRequests Handler function to handle HTTP requests
 func (dbS DbStruct) ProcessHTTPRequests(resp http.ResponseWriter, req *http.Request) {
 
 	key := req.URL.Query().Get("key")
 	val := req.URL.Query().Get("value")
 
-	if status, err := ValidateData(key, val); err != nil {
-		http.Error(resp, err.Error(), status)
+	if err := ValidateData(key, val); err != nil {
+		http.Error(resp, err.Error(), http.StatusBadRequest)
 		return
 	}
 	// Handle http methods
