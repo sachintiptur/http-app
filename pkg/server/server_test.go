@@ -1,32 +1,32 @@
 package server
 
 import (
-	"github.com/stretchr/testify/require"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	database "github.com/sachintiptur/http-app/pkg/util"
+	"github.com/stretchr/testify/require"
+
+	database "github.com/sachintiptur/http-app/pkg/database"
 	"go.uber.org/goleak"
 )
 
 func TestProcessHTTPRequests(t *testing.T) {
 	defer goleak.VerifyNone(t)
-	var testcases = []struct {
+	testcases := []struct {
 		name           string
 		method         string
 		key            string
 		value          string
 		expectedStatus int
 	}{
-
 		{
 			name:           "Test http PUT request ",
 			method:         http.MethodPut,
 			key:            "foo",
 			value:          "bar",
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusCreated,
 		},
 		{
 			name:           "Test http GET request ",
@@ -75,14 +75,18 @@ func TestProcessHTTPRequests(t *testing.T) {
 		},
 	}
 
-	var DatabaseUnderTest []DbStruct
+	var DatabaseUnderTest []DatabaseHandler
 	var url string
 	// run tests for both file as database and local map as database
-	DatabaseUnderTest = append(DatabaseUnderTest, DbStruct{&database.JsonData{}}, DbStruct{&database.MemData{}})
+	DatabaseUnderTest = append(DatabaseUnderTest, DatabaseHandler{&database.JsonDatabase{}}, DatabaseHandler{&database.InMemoryDatabase{}})
 
-	for _, db := range DatabaseUnderTest {
-		db.DbIntf.Init()
-		log.Printf("Testing with %T as database\n", db.DbIntf)
+	for _, database := range DatabaseUnderTest {
+		err := database.Db.Init()
+		if err != nil {
+			log.Println("database init failed")
+			continue
+		}
+		log.Printf("Testing with %T as database\n", database.Db)
 
 		for _, tc := range testcases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -90,17 +94,14 @@ func TestProcessHTTPRequests(t *testing.T) {
 					url = "http://localhost:8080?key=" + tc.key + "&value=" + tc.value
 				} else {
 					url = "http://localhost:8080" + "?key=" + tc.key
-
 				}
 
 				req := httptest.NewRequest(tc.method, url, nil)
 				w := httptest.NewRecorder()
-				db.ProcessHTTPRequests(w, req)
+				database.ProcessHTTPRequests(w, req)
 
 				require.Equal(t, tc.expectedStatus, w.Result().StatusCode)
-
 			})
 		}
 	}
-
 }

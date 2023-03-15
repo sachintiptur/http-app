@@ -12,7 +12,6 @@ import (
 // line arguments. Build and send appropriate HTTP request to
 // the server.
 func main() {
-
 	method := flag.String("m", "", "HTTP method, supported methods are [GET, PUT, DELETE]")
 	key := flag.String("k", "", "Key for the data")
 	value := flag.String("v", "", "Value of the data")
@@ -25,13 +24,12 @@ func main() {
 		log.Fatal("method not supported")
 	}
 
-	var tmp = client.Data{Key: *key, Val: *value}
+	data := client.Data{Key: *key, Val: *value}
 
-	resp, err := client.SendHTTPRequest(*method, tmp)
+	resp, err := client.SendHTTPRequest(*method, data)
 	if err != nil {
 		log.Fatalf("sending http request failed with error %s", err)
 	}
 
 	log.Println(resp)
-
 }

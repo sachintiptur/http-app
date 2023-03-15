@@ -5,8 +5,9 @@ import (
 	"log"
 	"net/http"
 
+	database "github.com/sachintiptur/http-app/pkg/database"
+	"github.com/sachintiptur/http-app/pkg/middleware"
 	"github.com/sachintiptur/http-app/pkg/server"
-	database "github.com/sachintiptur/http-app/pkg/util"
 )
 
 // HTTP server process
@@ -17,27 +18,26 @@ func main() {
 	dbType := flag.String("db", "map", "Database to use, supported values are [map, json]")
 	flag.Parse()
 
-	if *dbType != "map" && *dbType != "json" {
+	if *dbType != database.MapType && *dbType != database.JsonType {
 		flag.Usage()
 		log.Fatal("Error: Unsupported database type")
 	}
 	// Map of supported database types
-	var db = map[string]database.Database{"map": &database.MemData{}, "json": &database.JsonData{}}
-	var dbS server.DbStruct
+	db := map[string]database.Database{database.MapType: &database.InMemoryDatabase{}, database.JsonType: &database.JsonDatabase{}}
+	var dbH server.DatabaseHandler
 
 	// Initialise the database
-	dbS.DbIntf = db[*dbType]
-	err := dbS.DbIntf.Init()
+	dbH.Db = db[*dbType]
+	err := dbH.Db.Init()
 	if err != nil {
 		log.Fatalf("database initialisation failed: %s", err)
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", dbS.ProcessHTTPRequests)
+	mux.HandleFunc("/", dbH.ProcessHTTPRequests)
 
 	// Register the http handler
-	mwMux := server.NewLogInfo(mux)
+	mwMux := logging.NewLogInfo(mux)
 	log.Println("Server is listening...")
 	log.Fatal(http.ListenAndServe(*addr, mwMux))
-
 }

@@ -7,11 +7,12 @@ import (
 	"time"
 )
 
+// Data struct holding user input data
 type Data struct {
 	Key, Val string
 }
 
-// Function to create http request based on the HTTP method
+// createHTTPRequest create http request based on the HTTP method
 func createHTTPRequest(method string, userData Data) (*http.Request, error) {
 	url := "http://localhost:8080"
 
@@ -38,24 +39,24 @@ func createHTTPRequest(method string, userData Data) (*http.Request, error) {
 	return req, err
 }
 
-// SendHTTPRequest Function to send HTTP request and parse the response
-func SendHTTPRequest(method string, tmp Data) (string, error) {
+// SendHTTPRequest sends HTTP requests and parse the response
+func SendHTTPRequest(method string, data Data) (string, error) {
 	client := http.Client{Timeout: time.Duration(1) * time.Second}
 
-	req, err := createHTTPRequest(method, tmp)
+	req, err := createHTTPRequest(method, data)
 	if err != nil {
 		return "", err
 	}
 	resp, err := client.Do(req)
-	defer resp.Body.Close()
 	if err != nil {
 		return "", err
 	}
+	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
-	return string(body), nil
 
+	return string(body), nil
 }
